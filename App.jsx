@@ -8,10 +8,10 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
-import AppNavigator from "./src/navigation/AppNavigator";
-import { AuthProvider } from "./src/context/AuthContext";
-import { CartProvider } from "./src/context/CartContext";
-import { COLORS } from "./src/utils/constants";
+import AppNavigator from "./navigation/AppNavigator";
+import { AuthProvider } from "./context/AuthContext";
+import { CartProvider } from "./context/CartContext";
+import { COLORS } from "./utils/constants";
 
 export default function App() {
   const [fontsLoaded] = useFonts({
