@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 
 import {
   createCategory,
@@ -9,6 +17,7 @@ import {
   getCategories,
   updateCategory,
 } from "../../api/categoryApi";
+
 import AnimatedEntrance from "../../components/AnimatedEntrance";
 import EmptyState from "../../components/EmptyState";
 import FormInput from "../../components/FormInput";
@@ -22,11 +31,14 @@ import { extractErrorMessage } from "../../utils/helpers";
 const initialForm = {
   name: "",
   description: "",
+  categoryImage: null,
+  previewImage: "",
   isActive: true,
 };
 
 export default function ManageCategoriesScreen() {
   const isFocused = useIsFocused();
+
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState("");
@@ -70,22 +82,91 @@ export default function ManageCategoriesScreen() {
     setEditingId("");
   };
 
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert(
+        "Permission Required",
+        "Please allow gallery permission to choose an image."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+
+    const fileName = asset.uri.split("/").pop() || "category-image.jpg";
+
+    let fileType = asset.mimeType || "image/jpeg";
+
+    if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(fileType)) {
+      fileType = "image/jpeg";
+    }
+
+    setForm((current) => ({
+      ...current,
+      categoryImage: {
+        uri: asset.uri,
+        name: fileName,
+        type: fileType,
+      },
+      previewImage: asset.uri,
+    }));
+  };
+
+  const validateForm = () => {
+    if (!form.name.trim()) {
+      Alert.alert("Validation Error", "Category name is required");
+      return false;
+    }
+
+    if (form.name.trim().length < 2) {
+      Alert.alert(
+        "Validation Error",
+        "Category name must have at least 2 characters"
+      );
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async () => {
+    if (!validateForm()) return;
+
     try {
       setSaving(true);
 
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        isActive: form.isActive,
+        categoryImage: form.categoryImage,
+      };
+
       if (editingId) {
-        await updateCategory(editingId, form);
+        await updateCategory(editingId, payload);
         Alert.alert("Updated", "Category updated successfully");
       } else {
-        await createCategory(form);
+        await createCategory(payload);
         Alert.alert("Created", "Category created successfully");
       }
 
       resetForm();
       await loadCategories();
     } catch (error) {
-      Alert.alert("Category Error", extractErrorMessage(error, "Failed to save category"));
+      Alert.alert(
+        "Category Error",
+        extractErrorMessage(error, "Failed to save category")
+      );
     } finally {
       setSaving(false);
     }
@@ -93,19 +174,44 @@ export default function ManageCategoriesScreen() {
 
   const handleEdit = (category) => {
     setEditingId(category._id);
+
     setForm({
       name: category.name,
       description: category.description || "",
+      categoryImage: null,
+      previewImage: category.categoryImage || "",
       isActive: category.isActive,
     });
+  };
+
+  const confirmDelete = (id) => {
+    Alert.alert(
+      "Delete Category",
+      "Are you sure you want to delete this category?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => handleDelete(id),
+        },
+      ]
+    );
   };
 
   const handleDelete = async (id) => {
     try {
       await deleteCategory(id);
       await loadCategories();
+      Alert.alert("Deleted", "Category deleted successfully");
     } catch (error) {
-      Alert.alert("Delete Error", extractErrorMessage(error, "Failed to delete category"));
+      Alert.alert(
+        "Delete Error",
+        extractErrorMessage(error, "Failed to delete category")
+      );
     }
   };
 
@@ -125,17 +231,22 @@ export default function ManageCategoriesScreen() {
           style={styles.heroGradient}
         >
           <Text style={styles.heroEyebrow}>Taxonomy Control</Text>
-          <Text style={styles.heroTitle}>Keep the menu organized before dishes go live.</Text>
+
+          <Text style={styles.heroTitle}>
+            Keep the menu organized before dishes go live.
+          </Text>
 
           <View style={styles.heroMetrics}>
             <View style={styles.heroMetric}>
               <Text style={styles.heroMetricValue}>{categories.length}</Text>
               <Text style={styles.heroMetricLabel}>All Categories</Text>
             </View>
+
             <View style={styles.heroMetric}>
               <Text style={styles.heroMetricValue}>{metrics.active}</Text>
               <Text style={styles.heroMetricLabel}>Active</Text>
             </View>
+
             <View style={styles.heroMetric}>
               <Text style={styles.heroMetricValue}>{metrics.inactive}</Text>
               <Text style={styles.heroMetricLabel}>Inactive</Text>
@@ -146,19 +257,25 @@ export default function ManageCategoriesScreen() {
 
       <AnimatedEntrance delay={110} trigger={isFocused} style={styles.formCard}>
         <View style={styles.formHeader}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.formEyebrow}>
               {editingId ? "Editing Category" : "Create Category"}
             </Text>
+
             <Text style={styles.formTitle}>
               {editingId ? "Update category details" : "Add a new food group"}
             </Text>
           </View>
+
           <StatusBadge
             label={form.isActive ? "Active" : "Inactive"}
             color={form.isActive ? COLORS.success : COLORS.warning}
           />
         </View>
+
+        <Text style={styles.autoNumberNote}>
+          Category Number: Auto generated by system
+        </Text>
 
         <FormInput
           label="Category Name"
@@ -166,6 +283,7 @@ export default function ManageCategoriesScreen() {
           onChangeText={(value) => updateField("name", value)}
           placeholder="Burgers"
         />
+
         <FormInput
           label="Description"
           value={form.description}
@@ -173,6 +291,23 @@ export default function ManageCategoriesScreen() {
           placeholder="All burger items"
           multiline
         />
+
+        <Text style={styles.imageLabel}>Category Image</Text>
+
+        {form.previewImage ? (
+          <Image source={{ uri: form.previewImage }} style={styles.previewImage} />
+        ) : (
+          <View style={styles.noImageBox}>
+            <Text style={styles.noImageText}>No image selected</Text>
+          </View>
+        )}
+
+        <PrimaryButton
+          title={form.previewImage ? "Change Image" : "Choose Image"}
+          variant="outline"
+          onPress={pickImage}
+        />
+
         <Pressable
           style={[styles.toggleButton, form.isActive && styles.toggleButtonActive]}
           onPress={() => updateField("isActive", !form.isActive)}
@@ -186,13 +321,19 @@ export default function ManageCategoriesScreen() {
             {form.isActive ? "Category is Active" : "Category is Inactive"}
           </Text>
         </Pressable>
+
         <PrimaryButton
           title={editingId ? "Update Category" : "Create Category"}
           onPress={handleSubmit}
           loading={saving}
         />
+
         {editingId ? (
-          <PrimaryButton title="Cancel Edit" variant="outline" onPress={resetForm} />
+          <PrimaryButton
+            title="Cancel Edit"
+            variant="outline"
+            onPress={resetForm}
+          />
         ) : null}
       </AnimatedEntrance>
 
@@ -208,16 +349,36 @@ export default function ManageCategoriesScreen() {
             trigger={isFocused}
             style={styles.categoryCard}
           >
+            {category.categoryImage ? (
+              <Image
+                source={{ uri: category.categoryImage }}
+                style={styles.categoryImage}
+              />
+            ) : (
+              <View style={styles.noImageBox}>
+                <Text style={styles.noImageText}>No Image</Text>
+              </View>
+            )}
+
             <View style={styles.cardHeader}>
-              <Text style={styles.categoryName}>{category.name}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.categoryNumber}>
+                  {category.categoryNumber}
+                </Text>
+
+                <Text style={styles.categoryName}>{category.name}</Text>
+              </View>
+
               <StatusBadge
                 label={category.isActive ? "Active" : "Inactive"}
                 color={category.isActive ? COLORS.success : COLORS.warning}
               />
             </View>
+
             <Text style={styles.categoryDescription}>
               {category.description || "No description added."}
             </Text>
+
             <View style={styles.actionRow}>
               <PrimaryButton
                 title="Edit"
@@ -225,11 +386,12 @@ export default function ManageCategoriesScreen() {
                 style={styles.smallButton}
                 onPress={() => handleEdit(category)}
               />
+
               <PrimaryButton
                 title="Delete"
                 variant="ghost"
                 style={styles.smallButton}
-                onPress={() => handleDelete(category._id)}
+                onPress={() => confirmDelete(category._id)}
               />
             </View>
           </AnimatedEntrance>
@@ -250,15 +412,18 @@ const styles = StyleSheet.create({
   container: {
     paddingBottom: 132,
   },
+
   heroCard: {
     borderRadius: 30,
     overflow: "hidden",
     ...SHADOWS.strong,
   },
+
   heroGradient: {
     paddingHorizontal: 20,
     paddingVertical: 22,
   },
+
   heroEyebrow: {
     fontFamily: FONTS.bold,
     fontSize: 12,
@@ -266,6 +431,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.9,
   },
+
   heroTitle: {
     fontFamily: FONTS.display,
     fontSize: 28,
@@ -273,11 +439,13 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     marginTop: 8,
   },
+
   heroMetrics: {
     flexDirection: "row",
     gap: 10,
     marginTop: 22,
   },
+
   heroMetric: {
     flex: 1,
     borderRadius: 22,
@@ -287,17 +455,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
+
   heroMetricValue: {
     fontFamily: FONTS.bold,
     fontSize: 18,
     color: COLORS.white,
   },
+
   heroMetricLabel: {
     fontFamily: FONTS.semiBold,
     fontSize: 12,
     color: "rgba(255,255,255,0.72)",
     marginTop: 6,
   },
+
   formCard: {
     backgroundColor: COLORS.surface,
     borderRadius: 30,
@@ -307,6 +478,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     ...SHADOWS.medium,
   },
+
   formHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -314,6 +486,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 2,
   },
+
   formEyebrow: {
     fontFamily: FONTS.bold,
     fontSize: 12,
@@ -321,12 +494,64 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
+
   formTitle: {
     fontFamily: FONTS.display,
     fontSize: 26,
     color: COLORS.text,
     marginTop: 4,
   },
+
+  autoNumberNote: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.textMuted,
+    backgroundColor: COLORS.surfaceAlt,
+    padding: 12,
+    borderRadius: 14,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+
+  imageLabel: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.text,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+
+  previewImage: {
+    width: "100%",
+    height: 170,
+    borderRadius: 20,
+    marginBottom: 12,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+
+  categoryImage: {
+    width: "100%",
+    height: 160,
+    borderRadius: 20,
+    marginBottom: 14,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+
+  noImageBox: {
+    width: "100%",
+    height: 140,
+    borderRadius: 20,
+    marginBottom: 12,
+    backgroundColor: COLORS.surfaceAlt,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  noImageText: {
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textMuted,
+  },
+
   toggleButton: {
     marginTop: 14,
     paddingVertical: 12,
@@ -334,16 +559,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: COLORS.surfaceAlt,
   },
+
   toggleButtonActive: {
     backgroundColor: COLORS.secondary,
   },
+
   toggleText: {
     fontFamily: FONTS.bold,
     color: COLORS.text,
   },
+
   toggleTextActive: {
     color: COLORS.white,
   },
+
   categoryCard: {
     backgroundColor: COLORS.surface,
     borderRadius: 24,
@@ -353,18 +582,27 @@ const styles = StyleSheet.create({
     marginTop: 14,
     ...SHADOWS.soft,
   },
+
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 10,
   },
+
+  categoryNumber: {
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    color: COLORS.primary,
+    marginBottom: 4,
+  },
+
   categoryName: {
     fontFamily: FONTS.bold,
     fontSize: 18,
     color: COLORS.text,
-    flex: 1,
   },
+
   categoryDescription: {
     fontFamily: FONTS.regular,
     fontSize: 14,
@@ -372,11 +610,13 @@ const styles = StyleSheet.create({
     marginTop: 10,
     lineHeight: 21,
   },
+
   actionRow: {
     flexDirection: "row",
     gap: 10,
     marginTop: 12,
   },
+
   smallButton: {
     flex: 1,
   },
