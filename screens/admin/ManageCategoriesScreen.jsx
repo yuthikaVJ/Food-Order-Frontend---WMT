@@ -26,7 +26,10 @@ import ScreenContainer from "../../components/ScreenContainer";
 import SectionTitle from "../../components/SectionTitle";
 import StatusBadge from "../../components/StatusBadge";
 import { COLORS, FONTS, SHADOWS } from "../../utils/constants";
-import { extractErrorMessage } from "../../utils/helpers";
+import { countLetters, extractErrorMessage } from "../../utils/helpers";
+
+const CATEGORY_NAME_LETTER_LIMIT = 25;
+const CATEGORY_DESCRIPTION_LETTER_LIMIT = 100;
 
 const initialForm = {
   name: "",
@@ -51,6 +54,7 @@ export default function ManageCategoriesScreen() {
     }
   }, [isFocused]);
 
+  // ========== READ: Fetch all categories ==========
   const loadCategories = async () => {
     try {
       setError("");
@@ -76,6 +80,15 @@ export default function ManageCategoriesScreen() {
       [key]: value,
     }));
   };
+
+  const getLetterCount = (value) => countLetters(value);
+
+  // ========== VALIDATION: Calculate letter counts for input limits ==========
+  const nameLetterCount = getLetterCount(form.name);
+  const descriptionLetterCount = getLetterCount(form.description);
+  const isNameOverLimit = nameLetterCount > CATEGORY_NAME_LETTER_LIMIT;
+  const isDescriptionOverLimit =
+    descriptionLetterCount > CATEGORY_DESCRIPTION_LETTER_LIMIT;
 
   const resetForm = () => {
     setForm(initialForm);
@@ -122,12 +135,15 @@ export default function ManageCategoriesScreen() {
     }));
   };
 
+  // ========== VALIDATION: Check form inputs ==========
   const validateForm = () => {
+    // Name required check
     if (!form.name.trim()) {
       Alert.alert("Validation Error", "Category name is required");
       return false;
     }
 
+    // Name min length check
     if (form.name.trim().length < 2) {
       Alert.alert(
         "Validation Error",
@@ -136,9 +152,28 @@ export default function ManageCategoriesScreen() {
       return false;
     }
 
+    // Name letter limit check (max 25 letters)
+    if (isNameOverLimit) {
+      Alert.alert(
+        "Validation Error",
+        `Category name must be ${CATEGORY_NAME_LETTER_LIMIT} letters or fewer`
+      );
+      return false;
+    }
+
+    // Description letter limit check (max 100 letters)
+    if (isDescriptionOverLimit) {
+      Alert.alert(
+        "Validation Error",
+        `Description must be ${CATEGORY_DESCRIPTION_LETTER_LIMIT} letters or fewer`
+      );
+      return false;
+    }
+
     return true;
   };
 
+  // ========== CREATE/UPDATE: Save category ==========
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
@@ -152,6 +187,7 @@ export default function ManageCategoriesScreen() {
         categoryImage: form.categoryImage,
       };
 
+      // UPDATE if editing, else CREATE new
       if (editingId) {
         await updateCategory(editingId, payload);
         Alert.alert("Updated", "Category updated successfully");
@@ -202,6 +238,7 @@ export default function ManageCategoriesScreen() {
     );
   };
 
+  // ========== DELETE: Remove category ==========
   const handleDelete = async (id) => {
     try {
       await deleteCategory(id);
@@ -282,7 +319,26 @@ export default function ManageCategoriesScreen() {
           value={form.name}
           onChangeText={(value) => updateField("name", value)}
           placeholder="Burgers"
+          maxLength={CATEGORY_NAME_LETTER_LIMIT}
         />
+
+        <View style={styles.wordCountRow}>
+          <Text style={styles.wordCountLabel}>Letter count</Text>
+          <Text
+            style={[
+              styles.wordCountValue,
+              isNameOverLimit && styles.wordCountValueError,
+            ]}
+          >
+            {nameLetterCount}/{CATEGORY_NAME_LETTER_LIMIT}
+          </Text>
+        </View>
+
+        {isNameOverLimit ? (
+          <Text style={styles.errorText}>
+            Category name cannot exceed {CATEGORY_NAME_LETTER_LIMIT} letters.
+          </Text>
+        ) : null}
 
         <FormInput
           label="Description"
@@ -290,8 +346,26 @@ export default function ManageCategoriesScreen() {
           onChangeText={(value) => updateField("description", value)}
           placeholder="All burger items"
           multiline
+          maxLength={CATEGORY_DESCRIPTION_LETTER_LIMIT}
         />
 
+        <View style={styles.wordCountRow}>
+          <Text style={styles.wordCountLabel}>Letter count</Text>
+          <Text
+            style={[
+              styles.wordCountValue,
+              isDescriptionOverLimit && styles.wordCountValueError,
+            ]}
+          >
+            {descriptionLetterCount}/{CATEGORY_DESCRIPTION_LETTER_LIMIT}
+          </Text>
+        </View>
+
+        {isDescriptionOverLimit ? (
+          <Text style={styles.errorText}>
+            Description cannot exceed {CATEGORY_DESCRIPTION_LETTER_LIMIT} letters.
+          </Text>
+        ) : null}
         <Text style={styles.imageLabel}>Category Image</Text>
 
         {form.previewImage ? (
@@ -342,6 +416,7 @@ export default function ManageCategoriesScreen() {
           <EmptyState title="Cannot load categories" description={error} />
         </AnimatedEntrance>
       ) : categories.length ? (
+        // ========== DISPLAY: Show all categories ==========
         categories.map((category, index) => (
           <AnimatedEntrance
             key={category._id}
@@ -511,6 +586,43 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginTop: 14,
     marginBottom: 8,
+  },
+
+  helperText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 8,
+  },
+
+  wordCountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+
+  wordCountLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+
+  wordCountValue: {
+    fontFamily: FONTS.bold,
+    fontSize: 12,
+    color: COLORS.text,
+  },
+
+  wordCountValueError: {
+    color: COLORS.danger,
+  },
+
+  errorText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: COLORS.danger,
+    marginTop: 6,
   },
 
   imageLabel: {

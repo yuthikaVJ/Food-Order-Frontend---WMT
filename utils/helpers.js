@@ -52,3 +52,7 @@ export const extractErrorMessage = (error, fallbackMessage) => {
     "Something went wrong"
   );
 };
+
+export const countLetters = (value = "") => {
+  return String(value).replace(/\s+/g, "").length;
+};
