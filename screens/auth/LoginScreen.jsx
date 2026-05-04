@@ -6,6 +6,7 @@ import FormInput from "../../components/FormInput";
 import PrimaryButton from "../../components/PrimaryButton";
 import ScreenContainer from "../../components/ScreenContainer";
 import { useAuth } from "../../hooks/useAuth";
+import { isValidEmail } from "../../utils/helpers";
 import { COLORS, FONTS } from "../../utils/constants";
 
 export default function LoginScreen({ navigation }) {
@@ -14,9 +15,16 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!isValidEmail(trimmedEmail)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
+      return;
+    }
+
     try {
       await login({
-        email: email.trim(),
+        email: trimmedEmail,
         password,
       });
     } catch (error) {

@@ -5,6 +5,7 @@ import FormInput from "../../components/FormInput";
 import PrimaryButton from "../../components/PrimaryButton";
 import ScreenContainer from "../../components/ScreenContainer";
 import { useAuth } from "../../hooks/useAuth";
+import { isValidEmail } from "../../utils/helpers";
 import { COLORS, FONTS } from "../../utils/constants";
 
 export default function RegisterScreen({ navigation }) {
@@ -25,11 +26,18 @@ export default function RegisterScreen({ navigation }) {
   };
 
   const handleRegister = async () => {
+    const trimmedEmail = form.email.trim();
+
+    if (!isValidEmail(trimmedEmail)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address.");
+      return;
+    }
+
     try {
       await register({
         ...form,
         name: form.name.trim(),
-        email: form.email.trim(),
+        email: trimmedEmail,
       });
     } catch (error) {
       Alert.alert("Registration Failed", error.message);
