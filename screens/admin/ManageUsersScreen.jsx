@@ -18,7 +18,7 @@ import ScreenContainer from "../../components/ScreenContainer";
 import SectionTitle from "../../components/SectionTitle";
 import StatusBadge from "../../components/StatusBadge";
 import { COLORS, FONTS, SHADOWS } from "../../utils/constants";
-import { extractErrorMessage } from "../../utils/helpers";
+import { extractErrorMessage, isValidEmail } from "../../utils/helpers";
 
 const initialForm = {
   name: "",
@@ -98,6 +98,13 @@ export default function ManageUsersScreen() {
 
   const handleSave = async () => {
     try {
+      const trimmedEmail = form.email.trim();
+
+      if (!isValidEmail(trimmedEmail)) {
+        Alert.alert("Invalid Email", "Please enter a valid email address.");
+        return;
+      }
+
       setSaving(true);
 
       if (creating) {
@@ -106,12 +113,16 @@ export default function ManageUsersScreen() {
           return;
         }
 
-        await createUserByAdmin(form);
+        await createUserByAdmin({
+          ...form,
+          name: form.name.trim(),
+          email: trimmedEmail,
+        });
         Alert.alert("Success", "User created successfully");
       } else {
         await updateUserByAdmin(editingUserId, {
           name: form.name,
-          email: form.email,
+          email: trimmedEmail,
           phone: form.phone,
           address: form.address,
         });
