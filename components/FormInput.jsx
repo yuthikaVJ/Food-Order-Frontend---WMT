@@ -12,6 +12,7 @@ export default function FormInput({
   multiline = false,
   keyboardType = "default",
   autoCapitalize = "sentences",
+  maxLength = null,
 }) {
   const [focused, setFocused] = useState(false);
 
@@ -27,6 +28,7 @@ export default function FormInput({
         multiline={multiline}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
+        maxLength={maxLength}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         style={[
